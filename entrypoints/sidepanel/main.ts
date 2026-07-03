@@ -160,11 +160,27 @@ function renderQualityOptions(info: VideoInfo): void {
   }
 }
 
-async function startDownload(info: VideoInfo): Promise<void> {
+async function startDownload(tabId: number): Promise<void> {
   const qualityId = Number(els.select.value)
+  // CDN URL は署名期限付きで、パネル表示時に取得したものは押下時点で失効しうる。
+  // 開始時に必ず取り直し、新しい署名の URL でジョブを組み立てる。
+  let response: VideoInfoResponse
+  try {
+    response = await requestVideoInfo(tabId)
+  } catch {
+    setStatus(
+      '動画ページと通信できませんでした。ページを再読み込みしてから開始してください。',
+      'error',
+    )
+    return
+  }
+  if (!response.ok) {
+    setStatus(`動画情報の取得に失敗しました: ${response.error}`, 'error')
+    return
+  }
   let job: DownloadJob
   try {
-    job = buildDownloadJob(info, qualityId)
+    job = buildDownloadJob(response.data, qualityId)
   } catch (err) {
     setStatus(
       `ダウンロード準備に失敗: ${err instanceof Error ? err.message : String(err)}`,
@@ -191,10 +207,11 @@ async function renderTop(): Promise<void> {
     setStatus('対応している動画ページを開いた状態で使用してください。', 'error')
     return
   }
+  const tabId = tab.id
 
   let response: VideoInfoResponse
   try {
-    response = await requestVideoInfo(tab.id)
+    response = await requestVideoInfo(tabId)
   } catch {
     // content script が未注入(拡張の更新後などに前から開いていたタブ)だと sendMessage が
     // 例外になる。パネルの再読込では受信側が生まれないため、対象ページをリロードして注入させる。
@@ -202,7 +219,6 @@ async function renderTop(): Promise<void> {
       '動画ページと通信できませんでした。下のボタンでページを再読み込みしてください。',
       'error',
     )
-    const tabId = tab.id
     els.reloadPage.hidden = false
     els.reloadPage.onclick = () => {
       setStatus('ページを再読み込みしています...')
@@ -233,7 +249,7 @@ async function renderTop(): Promise<void> {
   setStatus('')
   els.info.hidden = false
   // 再描画で重複しないよう addEventListener ではなく代入で差し替える。
-  els.button.onclick = () => void startDownload(info)
+  els.button.onclick = () => void startDownload(tabId)
 }
 
 // --- 下部: ダウンロード一覧 ---

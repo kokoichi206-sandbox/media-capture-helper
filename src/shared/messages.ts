@@ -26,6 +26,9 @@ export type VideoInfoResponse = Result<VideoInfo>
 // ダウンロード対象の 1 ストリーム(映像 or 音声)。CDN は落ちることがあるため
 // backupUrls も持ち、順に試す(暗黙 fallback ではなく明示的な多重化)。
 export interface JobStream {
+  // DASH 上のストリーム識別子(映像は画質 ID、音声は音質 ID)。URL 再取得時に
+  // 同一実体のストリームを引き直すためのキー(codecs と併用)。
+  id: number
   url: string
   backupUrls: string[]
   codecs: string
@@ -145,3 +148,12 @@ export type DownloadBlobRequest = {
   filename: string
 }
 export type DownloadBlobResponse = { ok: true } | { ok: false; error: string }
+
+// offscreen -> background(要応答)。CDN URL は署名期限(deadline)付きで、長時間の
+// ダウンロードでは転送中に失効して切断される。認証 Cookie が要るため offscreen からは
+// 再取得できず、動画ページの content script 経由で新しい署名の URL を引き直してもらう。
+export type RefreshStreamsRequest = { type: 'REFRESH_STREAMS'; jobId: string }
+export type RefreshStreamsResponse = Result<{
+  video: JobStream
+  audio: JobStream | null
+}>

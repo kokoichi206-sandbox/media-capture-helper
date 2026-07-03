@@ -26,6 +26,7 @@ Stack と依存は package.json、manifest の意図は wxt.config.ts のコメ�
 - **画質 API は content script(対象サイトのページ内)から呼ぶ。** HttpOnly の認証 Cookie はページコンテキストからの same-site fetch でしか送信されない。background や popup に移すとログイン画質が取れなくなる。
 - **CDN 取得の Referer は DNR で付与する。** fetch で Referer は偽装できない。ルールは `public/rules/referer.json`(xmlhttprequest 対象)。
 - **ffmpeg.wasm はバンドルせず public/vendor から実行時ロードする**(`src/downloader/ffmpeg-loader.ts`)。Vite に載せると worker バンドルと CSP で不確実になる。
+- **結合はフルサイズの連続バッファを作らない。** 入力は WORKERFS mount(Blob 遅延読み)、出力は fMP4 セグメント列(HLS muxer)の Blob 連結。writeFile や古典的 MP4(+faststart)出力に戻すと、MEMFS がファイル全長の連続配列を要求し、数 GB の動画で確保に失敗する(Chrome の worker では巨大連続確保が通らない)。
 - **状態の書き手は background だけ。** UI(sidepanel)は `storage.session` を購読して描画するだけで、実処理も決定も持たない。画質選択・結合対象の決定は `src/extractor/streams.ts` に集約する。
 - コメントは Why のみ。What/How はコードで表現する。
 
