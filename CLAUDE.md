@@ -20,7 +20,8 @@ WXT + TypeScript(strict) + pnpm。UI はフレームワークなしの素の DOM
 
 - 純粋ロジック(`src/extractor` の URL 解析・ストリーム選別・ファイル名生成)だけが
   ユニットテスト対象。
-- ネットワーク取得・ffmpeg 結合・chrome.\* の連携・DNR による Referer 付与は
+- ネットワーク取得・ffmpeg 結合・chrome.\* の連携・DNR による Referer 付与・
+  offscreen の生成・サイドパネルの動線は
   **実機 Chrome(= `pnpm e2e`)でしか検証できない**。
 
 ## 守る原則(プロジェクト固有・必ず守る)
@@ -46,8 +47,13 @@ WXT + TypeScript(strict) + pnpm。UI はフレームワークなしの素の DOM
   `src/extractor`(URL 解析・ストリーム選別)に閉じている。対応サイトを増やす場合は
   ここと `wxt.config.ts` の host/DNR、`public/rules/referer.json` を触る。
 - 画質選択・結合対象の決定は `src/extractor/streams.ts` に集約。UI は決定を持たない。
-- ダウンロードの実体(fetch/結合/保存)は `entrypoints/downloader/main.ts`。
-  純粋部分(ファイル名・ffmpeg ロード)は `src/` に分離してテスト/差し替え可能にする。
+- ダウンロードの実体(fetch/結合/保存)は不可視の `entrypoints/offscreen/main.ts`。
+  起動・キュー・状態管理は `entrypoints/background.ts`(唯一の state writer)。
+  UI(`entrypoints/sidepanel/`)は `storage.session` を購読して描画するだけで、
+  実処理も決定も持たない。純粋部分(ファイル名・ffmpeg ロード)は `src/` に分離。
+- 可視タブを使わないのは、popup は閉じると処理が止まり、service worker では
+  `URL.createObjectURL` が使えないため。長時間の作業は持続的な offscreen document
+  上で動かす。
 
 ## 落とし穴
 

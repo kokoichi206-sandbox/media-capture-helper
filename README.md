@@ -28,19 +28,27 @@ pnpm build     # 本番ビルド(.output/chrome-mv3)
 ## 使い方
 
 1. 対応サイトの動画ページを開く
-2. ツールバーの拡張機能アイコンをクリック
+2. ツールバーの拡張機能アイコンをクリック（サイドパネルが開く）
 3. 画質を選んで「ダウンロード」
-4. 進捗ページが開き、完了すると MP4 が保存される
+4. サイドパネルの一覧に進捗が表示され、完了すると MP4 が保存される
+
+ダウンロードは新規タブを開かず、サイドパネルで進捗・キャンセル・直近の履歴
+（完了/エラーを最大 20 件）を管理する。恒久的なダウンロード履歴は
+`chrome://downloads` に残る。
 
 ## 仕組み
 
 ```
-popup(画質選択) ──session storage──> downloader ページ
-  │                                    │
-  └─ content script                    ├─ 映像/音声 (.m4s) を fetch
-     対象サイトのページ内で              │   └─ declarativeNetRequest で Referer を付与
-     view / playurl API を呼ぶ          ├─ ffmpeg.wasm で結合 (-c copy)
-                                        └─ chrome.downloads で保存
+サイドパネル(画質選択 + 進捗/履歴の管理)
+  │  └─ content script: 対象サイトのページ内で view / playurl API を呼ぶ
+  │
+  ├─ START_DOWNLOAD ─> background(調整役 / 状態を storage.session に集約)
+  │                       └─ RUN_JOB ─> offscreen(不可視の作業ページ)
+  │                                       ├─ 映像/音声 (.m4s) を fetch
+  │                                       │   └─ declarativeNetRequest で Referer を付与
+  │                                       ├─ ffmpeg.wasm で結合 (-c copy)
+  │                                       └─ chrome.downloads で保存
+  └─ storage.session を購読して進捗と履歴を描画
 ```
 
 - 対象サイトは DASH 配信のため映像と音声が別ファイル。ffmpeg.wasm で 1 つの MP4 に結合する。
@@ -49,8 +57,12 @@ popup(画質選択) ──session storage──> downloader ページ
   ログイン状態に応じた画質リストが得られる。
 - CDN は `Referer` が必須のため、`declarativeNetRequest` の静的ルール
   (`public/rules/referer.json`)で付与している。
+- 取得・結合・保存は不可視の offscreen document で行う。popup は閉じると処理が
+  止まり、service worker では `URL.createObjectURL` が使えないため、長時間の作業は
+  持続的な document 上で動かす必要がある。UI(サイドパネル)とは `storage.session`
+  経由で疎結合にし、パネルの開閉やタブ移動と作業を独立させている。
 - ffmpeg.wasm は CSP のため CDN 読み込み不可。`public/vendor/` に同梱し、
-  downloader ページから実行時に動的 import する（Vite のバンドルには載せない）。
+  offscreen ページから実行時に動的 import する（Vite のバンドルには載せない）。
 
 ## テスト
 
