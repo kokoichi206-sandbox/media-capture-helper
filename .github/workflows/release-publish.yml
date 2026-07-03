@@ -1,0 +1,69 @@
+name: release-publish
+
+# release-prepare の PR がマージされた後、main の package.json の version に
+# 対応するタグがまだ無ければビルドして Release を作る。
+# version を変えない通常の push では既存タグが見つかり、何もせず終わる(冪等)。
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check version tag
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}"
+          if gh api "repos/${REPO}/git/ref/tags/${TAG}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        if: steps.check.outputs.exists == 'false'
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.exists == 'false'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        if: steps.check.outputs.exists == 'false'
+
+      # e2e は実機 Chrome とネットワークが必要で CI では検証できない(CLAUDE.md 参照)
+      - run: pnpm compile
+        if: steps.check.outputs.exists == 'false'
+      - run: pnpm test
+        if: steps.check.outputs.exists == 'false'
+      - run: pnpm zip
+        if: steps.check.outputs.exists == 'false'
+
+      - name: tag and create release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" .output/*.zip \
+            --title "$TAG" \
+            --generate-notes
