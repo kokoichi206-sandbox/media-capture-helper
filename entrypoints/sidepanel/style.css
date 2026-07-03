@@ -213,6 +213,33 @@ select {
   cursor: default;
 }
 
+.button-secondary {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 34px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background 150ms var(--ease),
+    border-color 150ms var(--ease),
+    transform 100ms var(--ease);
+}
+
+.button-secondary:hover {
+  background: var(--color-surface-sunken);
+  border-color: var(--color-text-muted);
+}
+
+.button-secondary:active {
+  transform: scale(0.99);
+}
+
 .link {
   padding: 0;
   font: inherit;
