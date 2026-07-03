@@ -52,3 +52,96 @@ export function isContentRequest(v: unknown): v is ContentRequest {
     (v as { type?: unknown }).type === 'GET_VIDEO_INFO'
   )
 }
+
+// ダウンロードの進行状態。offscreen 内の一過性(ffmpeg 読込中など)は downloading に
+// 畳み、UI が一覧で扱える粒度だけを状態機械に残す。
+export type DownloadStatus =
+  | 'queued'
+  | 'downloading'
+  | 'merging'
+  | 'saving'
+  | 'done'
+  | 'error'
+
+// 進行中と見なす状態(この間は offscreen が占有され、次のキューは動かない)。
+export const ACTIVE_STATUSES: readonly DownloadStatus[] = [
+  'downloading',
+  'merging',
+  'saving',
+]
+
+export function isActiveStatus(status: DownloadStatus): boolean {
+  return ACTIVE_STATUSES.includes(status)
+}
+
+// 1 ストリームの受信バイト進捗。total=0 は content-length 不明を表す。
+export interface StreamProgress {
+  received: number
+  total: number
+}
+
+// サイドパネルの一覧が描画する 1 ダウンロードの状態。background が唯一の書き手で、
+// storage.session の DOWNLOADS_KEY 配下に jobId をキーにして持つ。
+export interface DownloadItem {
+  jobId: string
+  displayTitle: string
+  qualityLabel: string
+  meta: string
+  status: DownloadStatus
+  video: StreamProgress
+  // 音声トラックが無い動画では null。
+  audio: StreamProgress | null
+  filename: string | null
+  error: string | null
+  createdAt: number
+  finishedAt: number | null
+}
+
+// storage.session に置くダウンロード状態マップのキーと型。
+export const DOWNLOADS_KEY = 'downloads'
+export type DownloadState = Record<string, DownloadItem>
+
+// jobId は動画・パート・画質の同一性から決まる。パネルと background で同じ関数を
+// 使い、キーのドリフト(開始したのに一覧に出ない等)を防ぐ。
+export function downloadJobId(job: DownloadJob): string {
+  return `job-${job.bvid}-${job.cid}-${job.qualityId}`
+}
+
+// サイドパネル -> background。
+export type PanelMessage =
+  | { type: 'START_DOWNLOAD'; job: DownloadJob }
+  | { type: 'CANCEL_DOWNLOAD'; jobId: string }
+  | { type: 'CLEAR_FINISHED' }
+
+// background -> offscreen(作業エンジン)。
+export type OffscreenMessage =
+  | { type: 'RUN_JOB'; jobId: string; job: DownloadJob }
+  | { type: 'CANCEL_JOB'; jobId: string }
+
+// offscreen -> background。進捗と状態遷移を通知し、background が storage に反映する。
+export type OffscreenEvent =
+  | {
+      type: 'JOB_PROGRESS'
+      jobId: string
+      kind: 'video' | 'audio'
+      received: number
+      total: number
+    }
+  | {
+      type: 'JOB_STATUS'
+      jobId: string
+      status: DownloadStatus
+      error?: string
+      filename?: string
+    }
+
+// offscreen -> background(要応答)。chrome.downloads は offscreen に無いため、offscreen が
+// 生成した blob URL の保存を background(service worker)に代行させる。blob URL は同一拡張
+// オリジンなので SW からでも解決できる。
+export type DownloadBlobRequest = {
+  type: 'DOWNLOAD_BLOB'
+  jobId: string
+  blobUrl: string
+  filename: string
+}
+export type DownloadBlobResponse = { ok: true } | { ok: false; error: string }

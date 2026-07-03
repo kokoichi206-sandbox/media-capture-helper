@@ -6,10 +6,20 @@ export default defineConfig({
     name: 'media-capture-helper',
     description:
       '開いている動画ページの動画を、ログイン状態の画質でダウンロードする',
-    // downloads: 生成した MP4 の保存。storage: ダウンロード指示(job)の受け渡し。
-    // tabs: アクティブな動画タブの特定と downloader ページの起動。
+    // アイコンクリックでサイドパネルを開くため、popup 無しの action を定義する。
+    action: {},
+    // downloads: 生成した MP4 の保存。storage: 状態(job / 進捗)の受け渡し。
+    // tabs: アクティブな動画タブの特定。sidePanel: 管理 UI の常設面。
+    // offscreen: 可視タブなしで fetch/ffmpeg/保存を行う作業ページ。
     // declarativeNetRequest: CDN 取得時に必須の Referer を静的ルールで付与。
-    permissions: ['downloads', 'storage', 'tabs', 'declarativeNetRequest'],
+    permissions: [
+      'downloads',
+      'storage',
+      'tabs',
+      'sidePanel',
+      'offscreen',
+      'declarativeNetRequest',
+    ],
     host_permissions: [
       'https://*.bilibili.com/*',
       'https://*.bilivideo.com/*',

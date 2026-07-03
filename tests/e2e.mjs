@@ -1,6 +1,10 @@
 // ビルド済み拡張(.output/chrome-mv3)を読み込んだ Chromium を起動し、
 // テスト動画のダウンロードを E2E で検証する。
 // 使い方: pnpm e2e [動画URL]  (npm script が先に wxt build を実行する)
+//
+// 実処理は不可視の offscreen document が担い進捗は storage 経由でサイドパネルに出る。
+// offscreen はページとして観測しづらいため、検証はサイドパネル一覧の状態遷移
+// (data-status)と chrome.downloads の実ファイルで行う。
 import { execFileSync } from 'node:child_process'
 import { copyFile, mkdir, rm } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
@@ -44,39 +48,43 @@ try {
   // content script は document_idle で注入されるため少し待つ。
   await videoPage.waitForTimeout(5000)
 
-  const popup = await context.newPage()
-  await popup.goto(`chrome-extension://${extensionId}/popup.html`)
-  await popup.waitForSelector('#video-info:not([hidden])', { timeout: 30000 })
+  // サイドパネルはタブとして開く。findVideoTab のフォールバックが動画タブを見つける。
+  const panel = await context.newPage()
+  await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+  await panel.waitForSelector('#video-info:not([hidden])', { timeout: 30000 })
 
-  const title = (await popup.textContent('#video-title')).trim()
-  const qualities = await popup.$$eval('#quality-select option', (options) =>
+  const title = (await panel.textContent('#video-title')).trim()
+  const qualities = await panel.$$eval('#quality-select option', (options) =>
     options.map((o) => o.textContent),
   )
-  const loginHintShown = await popup.$eval('#login-hint', (el) => !el.hidden)
+  const loginHintShown = await panel.$eval('#login-hint', (el) => !el.hidden)
   console.log('title:', title)
   console.log('selectable qualities:', qualities)
   console.log('login hint shown:', loginHintShown)
 
-  const [downloaderPage] = await Promise.all([
-    context.waitForEvent('page', { timeout: 15000 }),
-    popup.click('#download-button'),
-  ])
-  await downloaderPage.waitForSelector(
-    '#status[data-state="done"], #status[data-state="error"]',
+  await panel.click('#download-button')
+
+  // 一覧の該当ジョブが done か error に達するまで待つ(進捗は storage 経由で反映)。
+  const finished = await panel.waitForSelector(
+    '#downloads-list .dl-item[data-status="done"], #downloads-list .dl-item[data-status="error"]',
     { timeout: 300000 },
   )
-  const state = await downloaderPage.$eval('#status', (el) => el.dataset.state)
-  const statusText = (await downloaderPage.textContent('#status')).trim()
-  console.log('downloader status:', state, '-', statusText)
-  if (state !== 'done') {
-    const logText = await downloaderPage.textContent('#log')
-    console.error('--- downloader log ---\n' + logText)
+  const status = await finished.evaluate((el) => el.dataset.status)
+  const itemTitle = (
+    await finished.$eval('.dl-title', (el) => el.textContent)
+  ).trim()
+  console.log('download status:', status, '-', itemTitle)
+  if (status !== 'done') {
+    const errorText = await finished
+      .$eval('.dl-error', (el) => el.textContent)
+      .catch(() => '(詳細なし)')
+    console.error('--- download error ---\n' + errorText)
     process.exit(1)
   }
 
   // Playwright はダウンロードを一時ディレクトリへ逃がすため、chrome.downloads
   // から実パスを取得し、コンテキストを閉じる前に回収する。
-  const [item] = await downloaderPage.evaluate(() =>
+  const [item] = await panel.evaluate(() =>
     chrome.downloads.search({ orderBy: ['-startTime'], limit: 1 }),
   )
   if (!item || item.state !== 'complete') {
