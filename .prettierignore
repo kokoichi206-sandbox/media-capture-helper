@@ -1,0 +1,7 @@
+node_modules
+.output
+.wxt
+dist
+public/vendor
+pnpm-lock.yaml
+tests/downloads

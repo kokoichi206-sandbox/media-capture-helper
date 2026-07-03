@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>動画ダウンロード</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <h1 id="video-title">読み込み中...</h1>
+      <p id="video-meta"></p>
+      <div id="status" data-state="init">準備中...</div>
+      <section class="progress-group">
+        <div class="progress-row" id="video-progress-row" hidden>
+          <span>映像</span>
+          <progress id="video-progress" max="1" value="0"></progress>
+          <span id="video-progress-text"></span>
+        </div>
+        <div class="progress-row" id="audio-progress-row" hidden>
+          <span>音声</span>
+          <progress id="audio-progress" max="1" value="0"></progress>
+          <span id="audio-progress-text"></span>
+        </div>
+      </section>
+      <details>
+        <summary>ログ</summary>
+        <pre id="log"></pre>
+      </details>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

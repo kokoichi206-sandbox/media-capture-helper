@@ -1,0 +1,74 @@
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 14px;
+  color: #212121;
+  background: #fafafa;
+}
+
+main {
+  max-width: 720px;
+  margin: 32px auto;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+h1 {
+  font-size: 16px;
+  margin: 0 0 4px;
+  word-break: break-all;
+}
+
+#video-meta {
+  color: #616161;
+  margin: 0 0 16px;
+}
+
+#status {
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: #e3f2fd;
+  margin-bottom: 16px;
+}
+
+#status[data-state='done'] {
+  background: #e8f5e9;
+}
+
+#status[data-state='error'] {
+  background: #ffebee;
+  color: #c62828;
+  white-space: pre-wrap;
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.progress-row progress {
+  flex: 1;
+}
+
+.progress-row span:first-child {
+  width: 3em;
+}
+
+#log {
+  max-height: 240px;
+  overflow-y: auto;
+  background: #263238;
+  color: #eceff1;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

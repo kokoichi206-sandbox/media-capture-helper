@@ -1,0 +1,18 @@
+node_modules
+# pnpm が ~ を展開できない環境で cwd 相対に誤生成する store の残骸(プロジェクト外)
+/~
+.output
+.wxt
+dist
+stats.html
+*.log
+.DS_Store
+.env
+.env.*
+
+# sync-vendor.mjs が node_modules からコピーする ffmpeg.wasm 一式(再生成可能)
+public/vendor
+
+# E2E の一時プロファイルと成果物
+tests/.profile
+tests/downloads
