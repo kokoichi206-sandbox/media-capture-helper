@@ -9,6 +9,7 @@ import {
   pickAudioStream,
   pickVideoStream,
   qualityLabel,
+  refreshJobStreams,
 } from './streams'
 
 function video(partial: Partial<DashStream> & { id: number }): DashStream {
@@ -162,5 +163,96 @@ describe('buildDownloadJob', () => {
 
   it('存在しない画質は例外', () => {
     expect(() => buildDownloadJob(info, 64)).toThrow(/64/)
+  })
+})
+
+describe('refreshJobStreams', () => {
+  const info: VideoInfo = {
+    bvid: 'BV1xx',
+    cid: 123,
+    page: 1,
+    title: 'タイトル',
+    partTitle: '',
+    durationSec: 37,
+    playinfo: {
+      quality: 32,
+      accept_quality: [32, 16],
+      accept_description: [],
+      dash: {
+        duration: 37,
+        video: [video({ id: 32, codecs: 'avc1.64001F' })],
+        audio: [audio({ id: 30280, bandwidth: 165000 })],
+      },
+    },
+  }
+  const job = buildDownloadJob(info, 32)
+
+  function freshPlayinfo(dash?: Dash): PlayInfo {
+    return { quality: 32, accept_quality: [32], accept_description: [], dash }
+  }
+
+  it('同一 id・codecs のストリームを新しい URL で引き直す', () => {
+    const dash: Dash = {
+      duration: 37,
+      video: [
+        video({
+          id: 32,
+          codecs: 'avc1.64001F',
+          baseUrl: 'https://cdn.example/renewed-video.m4s',
+          backupUrl: ['https://backup.example/renewed-video.m4s'],
+        }),
+      ],
+      audio: [
+        audio({ id: 30280, baseUrl: 'https://cdn.example/renewed-audio.m4s' }),
+      ],
+    }
+    const refreshed = refreshJobStreams(job, freshPlayinfo(dash))
+    expect(refreshed.video.url).toBe('https://cdn.example/renewed-video.m4s')
+    expect(refreshed.video.backupUrls).toEqual([
+      'https://backup.example/renewed-video.m4s',
+    ])
+    expect(refreshed.audio?.url).toBe('https://cdn.example/renewed-audio.m4s')
+  })
+
+  it('DASH が無ければ例外', () => {
+    expect(() => refreshJobStreams(job, freshPlayinfo(undefined))).toThrow(
+      /DASH/,
+    )
+  })
+
+  it('同一 codecs の映像が無ければ例外(バイト同一性が保てない)', () => {
+    const dash: Dash = {
+      duration: 37,
+      video: [video({ id: 32, codecs: 'av01.0.08M' })],
+      audio: [audio({ id: 30280 })],
+    }
+    expect(() => refreshJobStreams(job, freshPlayinfo(dash))).toThrow(/映像/)
+  })
+
+  it('音声ありのジョブで同一音声が無ければ例外', () => {
+    const dash: Dash = {
+      duration: 37,
+      video: [video({ id: 32, codecs: 'avc1.64001F' })],
+      audio: null,
+    }
+    expect(() => refreshJobStreams(job, freshPlayinfo(dash))).toThrow(/音声/)
+  })
+
+  it('音声なしのジョブでは音声を要求しない', () => {
+    const noAudioInfo: VideoInfo = {
+      ...info,
+      playinfo: {
+        ...info.playinfo,
+        dash: { duration: 37, video: [video({ id: 32 })], audio: null },
+      },
+    }
+    const noAudioJob = buildDownloadJob(noAudioInfo, 32)
+    const dash: Dash = {
+      duration: 37,
+      video: [video({ id: 32 })],
+      audio: null,
+    }
+    const refreshed = refreshJobStreams(noAudioJob, freshPlayinfo(dash))
+    expect(refreshed.audio).toBeNull()
   })
 })

@@ -1,5 +1,6 @@
 import { defineBackground } from '#imports'
 import type {
+  ContentRequest,
   DownloadBlobRequest,
   DownloadBlobResponse,
   DownloadItem,
@@ -8,6 +9,9 @@ import type {
   OffscreenEvent,
   OffscreenMessage,
   PanelMessage,
+  RefreshStreamsRequest,
+  RefreshStreamsResponse,
+  VideoInfoResponse,
 } from '../src/shared/messages'
 import {
   DOWNLOADS_KEY,
@@ -15,6 +19,7 @@ import {
   isActiveStatus,
 } from '../src/shared/messages'
 import { buildDisplayTitle } from '../src/extractor/filename'
+import { refreshJobStreams } from '../src/extractor/streams'
 
 // 調整役。サイドパネル(UI)からの指示を受け、offscreen(作業エンジン)を起動・直列化し、
 // 進捗を storage.session の唯一の書き手として反映する。ダウンロードの実処理は持たず、
@@ -105,6 +110,55 @@ async function downloadBlob(
       error: err instanceof Error ? err.message : String(err),
     }
   }
+}
+
+// CDN URL の署名期限切れ時の再取得。認証 Cookie はページコンテキストからしか送れない
+// ため、同一動画(bvid+cid)を開いているタブの content script に playurl を引き直させる。
+// 状態遷移とは独立なので serialize は通さず即時に実行する。
+async function refreshStreams(
+  req: RefreshStreamsRequest,
+): Promise<RefreshStreamsResponse> {
+  const job = await readJob(req.jobId)
+  if (!job) {
+    return { ok: false, error: 'ダウンロード指示が見つかりませんでした' }
+  }
+  const tabs = await chrome.tabs.query({
+    url: 'https://www.bilibili.com/video/*',
+  })
+  const request: ContentRequest = { type: 'GET_VIDEO_INFO' }
+  let lastError =
+    '動画ページのタブが見つかりません(ダウンロード中は対象ページを開いたままにしてください)'
+  for (const tab of tabs) {
+    if (tab.id == null) continue
+    let response: VideoInfoResponse
+    try {
+      response = (await chrome.tabs.sendMessage(
+        tab.id,
+        request,
+      )) as VideoInfoResponse
+    } catch {
+      // content script 未注入のタブ(拡張更新前から開いていた等)は候補から外す。
+      continue
+    }
+    if (!response.ok) {
+      lastError = response.error
+      continue
+    }
+    // 別動画へ遷移済みのタブは対象外。
+    if (response.data.bvid !== job.bvid || response.data.cid !== job.cid) {
+      continue
+    }
+    // 同一動画のタブを発見。ここから先の失敗は確定的なので探索を打ち切って返す。
+    try {
+      return { ok: true, data: refreshJobStreams(job, response.data.playinfo) }
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      }
+    }
+  }
+  return { ok: false, error: lastError }
 }
 
 function waitForDownload(downloadId: number): Promise<void> {
@@ -309,6 +363,10 @@ export default defineBackground(() => {
     if (type === 'DOWNLOAD_BLOB') {
       // 保存は状態遷移と独立。offscreen が待つ応答をそのまま返す。
       void downloadBlob(message as DownloadBlobRequest).then(sendResponse)
+      return true
+    }
+    if (type === 'REFRESH_STREAMS') {
+      void refreshStreams(message as RefreshStreamsRequest).then(sendResponse)
       return true
     }
     if (typeof type !== 'string' || !HANDLED_TYPES.has(type)) return

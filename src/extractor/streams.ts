@@ -1,7 +1,7 @@
 // DASH ストリームの選別と、画質選択肢・ダウンロード指示の組み立て(純粋ロジック)。
 
 import type { Dash, DashStream, PlayInfo } from '../shared/api-types'
-import type { DownloadJob, VideoInfo } from '../shared/messages'
+import type { DownloadJob, JobStream, VideoInfo } from '../shared/messages'
 
 // 再生互換性の高い順。同一画質で複数コーデックが返るため 1 つに絞る指標。
 export const CODEC_PRIORITY = ['avc1', 'hev1', 'hvc1', 'av01'] as const
@@ -51,8 +51,9 @@ export function hasLockedQuality(playinfo: PlayInfo, dash: Dash): boolean {
   return (playinfo.accept_quality ?? []).some((q) => q > maxDashQuality)
 }
 
-function toJobStream(stream: DashStream) {
+function toJobStream(stream: DashStream): JobStream {
   return {
+    id: stream.id,
     url: stream.baseUrl,
     backupUrls: stream.backupUrl ?? [],
     codecs: stream.codecs,
@@ -85,4 +86,38 @@ export function buildDownloadJob(
     video: { ...toJobStream(video), width: video.width, height: video.height },
     audio: audio ? toJobStream(audio) : null,
   }
+}
+
+// ダウンロード中に CDN URL の署名期限が切れた際、再取得した playinfo から進行中
+// ジョブと同一実体のストリームを引き直す。Range による途中再開はバイト同一性が
+// 前提のため、id と codecs の完全一致だけを許し、不一致は例外にする(fallback しない)。
+export function refreshJobStreams(
+  job: DownloadJob,
+  playinfo: PlayInfo,
+): { video: JobStream; audio: JobStream | null } {
+  const dash = playinfo.dash
+  if (!dash) {
+    throw new Error('再取得した再生情報に DASH ストリームがありません')
+  }
+  const video = dash.video.find(
+    (v) => v.id === job.video.id && v.codecs === job.video.codecs,
+  )
+  if (!video) {
+    throw new Error(
+      `再取得した再生情報に同一の映像ストリームがありません (id=${job.video.id}, ${job.video.codecs})`,
+    )
+  }
+  const jobAudio = job.audio
+  if (!jobAudio) {
+    return { video: toJobStream(video), audio: null }
+  }
+  const audio = (dash.audio ?? []).find(
+    (a) => a.id === jobAudio.id && a.codecs === jobAudio.codecs,
+  )
+  if (!audio) {
+    throw new Error(
+      `再取得した再生情報に同一の音声ストリームがありません (id=${jobAudio.id})`,
+    )
+  }
+  return { video: toJobStream(video), audio: toJobStream(audio) }
 }
