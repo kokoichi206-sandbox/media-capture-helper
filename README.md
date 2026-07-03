@@ -21,9 +21,7 @@ pnpm dev       # Chrome を起動して拡張をロード(開発)
 pnpm build     # 本番ビルド(.output/chrome-mv3)
 ```
 
-手動で読み込む場合は `pnpm build` 後に `chrome://extensions` →
-デベロッパーモード ON →「パッケージ化されていない拡張機能を読み込む」で
-`.output/chrome-mv3` を選択する。
+手動で読み込む場合は `pnpm build` 後に `chrome://extensions` → デベロッパーモード ON →「パッケージ化されていない拡張機能を読み込む」で `.output/chrome-mv3` を選択する。
 
 ## 使い方
 
@@ -32,9 +30,7 @@ pnpm build     # 本番ビルド(.output/chrome-mv3)
 3. 画質を選んで「ダウンロード」
 4. サイドパネルの一覧に進捗が表示され、完了すると MP4 が保存される
 
-ダウンロードは新規タブを開かず、サイドパネルで進捗・キャンセル・直近の履歴
-（完了/エラーを最大 20 件）を管理する。恒久的なダウンロード履歴は
-`chrome://downloads` に残る。
+ダウンロードは新規タブを開かず、サイドパネルで進捗・キャンセル・直近の履歴（完了/エラーを最大 20 件）を管理する。恒久的なダウンロード履歴は `chrome://downloads` に残る。
 
 ## 仕組み
 
@@ -52,17 +48,10 @@ pnpm build     # 本番ビルド(.output/chrome-mv3)
 ```
 
 - 対象サイトは DASH 配信のため映像と音声が別ファイル。ffmpeg.wasm で 1 つの MP4 に結合する。
-- 画質 API はコンテンツスクリプト（対象サイトのページコンテキスト）から呼ぶ。
-  HttpOnly の認証 Cookie が same-site として自動送信されるため、
-  ログイン状態に応じた画質リストが得られる。
-- CDN は `Referer` が必須のため、`declarativeNetRequest` の静的ルール
-  (`public/rules/referer.json`)で付与している。
-- 取得・結合・保存は不可視の offscreen document で行う。popup は閉じると処理が
-  止まり、service worker では `URL.createObjectURL` が使えないため、長時間の作業は
-  持続的な document 上で動かす必要がある。UI(サイドパネル)とは `storage.session`
-  経由で疎結合にし、パネルの開閉やタブ移動と作業を独立させている。
-- ffmpeg.wasm は CSP のため CDN 読み込み不可。`public/vendor/` に同梱し、
-  offscreen ページから実行時に動的 import する（Vite のバンドルには載せない）。
+- 画質 API はコンテンツスクリプト（対象サイトのページコンテキスト）から呼ぶ。HttpOnly の認証 Cookie が same-site として自動送信されるため、ログイン状態に応じた画質リストが得られる。
+- CDN は `Referer` が必須のため、`declarativeNetRequest` の静的ルール(`public/rules/referer.json`)で付与している。
+- 取得・結合・保存は不可視の offscreen document で行う。popup は閉じると処理が止まり、service worker では `URL.createObjectURL` が使えないため、長時間の作業は持続的な document 上で動かす必要がある。UI(サイドパネル)とは `storage.session` 経由で疎結合にし、パネルの開閉やタブ移動と作業を独立させている。
+- ffmpeg.wasm は CSP のため CDN 読み込み不可。`public/vendor/` に同梱し、offscreen ページから実行時に動的 import する（Vite のバンドルには載せない）。
 
 ## テスト
 
@@ -81,8 +70,7 @@ pnpm build     # 本番ビルド(.output/chrome-mv3)
   pnpm e2e 'https://www.bilibili.com/video/BV...'
   ```
 
-  ffprobe (Homebrew の ffmpeg) が必要。テスト用 Chromium は未ログインのため
-  480P までとなる。ログイン画質は自分の Chrome に拡張を読み込んで確認する。
+  ffprobe (Homebrew の ffmpeg) が必要。テスト用 Chromium は未ログインのため 480P までとなる。ログイン画質は自分の Chrome に拡張を読み込んで確認する。
 
 ## 制限事項
 
@@ -90,13 +78,10 @@ pnpm build     # 本番ビルド(.output/chrome-mv3)
 - 音声は最高ビットレートの AAC を使用（FLAC / Dolby は未対応）
 - ダウンロードはメモリ上で行うため、数 GB 級の長時間動画では失敗する可能性がある
 - 多パート動画 (`?p=N`) は現在開いているパートのみダウンロードする
+- 対象サイトの仕様変更等により、予告なく動作しなくなることがある
 
 ## 免責事項
 
-- 本拡張は個人利用・技術検証を目的とする。対象サイトの利用規約および著作権法等の
-  関係法令の確認・遵守は、利用者自身の責任で行うこと。
-- ダウンロードしたコンテンツの再配布・公開など、私的利用の範囲を超える利用は
-  行わないこと。
-- 本ソフトウェアは現状有姿（AS IS）で提供され、動作や取得結果についていかなる
-  保証もしない。利用によって生じた損害・不利益について、作者は一切の責任を負わない。
-- 対象サイトの仕様変更等により、予告なく動作しなくなることがある。
+- 本拡張は個人利用・技術検証を目的とする。対象サイトの利用規約および著作権法等の関係法令の確認・遵守は、利用者自身の責任で行うこと。
+- ダウンロードしたコンテンツの再配布・公開など、私的利用の範囲を超える利用は行わないこと。
+- 無保証・免責の詳細は [LICENSE](./LICENSE)（MIT）に従う。
