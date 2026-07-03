@@ -1,6 +1,6 @@
 {
   "name": "media-capture-helper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "開いている動画ページの動画をダウンロードする Chrome 拡張",
