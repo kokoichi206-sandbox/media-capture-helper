@@ -42,6 +42,7 @@ function byId<T extends HTMLElement>(id: string): T {
 
 const els = {
   status: byId<HTMLDivElement>('status'),
+  reloadPage: byId<HTMLButtonElement>('reload-page'),
   info: byId<HTMLElement>('video-info'),
   title: byId<HTMLParagraphElement>('video-title'),
   select: byId<HTMLSelectElement>('quality-select'),
@@ -181,6 +182,7 @@ async function renderTop(): Promise<void> {
   els.select.textContent = ''
   els.info.hidden = true
   els.loginHint.hidden = true
+  els.reloadPage.hidden = true
   els.button.disabled = false
   setStatus('動画情報を取得中...')
 
@@ -194,10 +196,20 @@ async function renderTop(): Promise<void> {
   try {
     response = await requestVideoInfo(tab.id)
   } catch {
+    // content script が未注入(拡張の更新後などに前から開いていたタブ)だと sendMessage が
+    // 例外になる。パネルの再読込では受信側が生まれないため、対象ページをリロードして注入させる。
     setStatus(
-      '動画ページと通信できませんでした。ページを再読み込みしてから再度お試しください。',
+      '動画ページと通信できませんでした。下のボタンでページを再読み込みしてください。',
       'error',
     )
+    const tabId = tab.id
+    els.reloadPage.hidden = false
+    els.reloadPage.onclick = () => {
+      setStatus('ページを再読み込みしています...')
+      els.reloadPage.hidden = true
+      // 完了(tab status = complete)は init の onUpdated 購読が拾い、renderTop を再実行する。
+      void chrome.tabs.reload(tabId)
+    }
     return
   }
   if (!response.ok) {
