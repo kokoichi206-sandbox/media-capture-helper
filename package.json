@@ -1,0 +1,39 @@
+{
+  "name": "media-capture-helper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "開いている動画ページの動画をダウンロードする Chrome 拡張",
+  "license": "MIT",
+  "packageManager": "pnpm@9.12.2",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "compile": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "wxt prepare && tsc --noEmit && vitest run && wxt build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"{src,entrypoints,scripts,tests}/**/*\" \"*.{ts,js,json,md}\"",
+    "format:check": "prettier --check \"{src,entrypoints,scripts,tests}/**/*\" \"*.{ts,js,json,md}\"",
+    "e2e": "wxt build && node tests/e2e.mjs",
+    "postinstall": "wxt prepare && node scripts/sync-vendor.mjs"
+  },
+  "devDependencies": {
+    "@ffmpeg/core": "0.12.10",
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "@types/chrome": "0.0.287",
+    "@typescript-eslint/eslint-plugin": "8.19.0",
+    "@typescript-eslint/parser": "8.19.0",
+    "eslint": "9.17.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-prettier": "5.2.1",
+    "playwright": "1.61.1",
+    "prettier": "3.4.2",
+    "typescript": "5.7.2",
+    "vitest": "4.1.7",
+    "wxt": "0.20.6"
+  }
+}
