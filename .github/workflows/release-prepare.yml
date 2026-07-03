@@ -1,0 +1,69 @@
+name: release-prepare
+
+# main が PR 必須で保護されているため、bump コミットは直接 push せず
+# PR 経由で main に入れる。実際のビルド・タグ・Release は release-publish.yml が
+# main へのマージ後に行う。
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: バージョンの上げ方
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-prepare
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm compile
+      - run: pnpm test
+
+      - name: bump version
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          VERSION="$(npm version "$BUMP" --no-git-tag-version)"
+          echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      - name: create pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.bump.outputs.version }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          BRANCH="release/v${VERSION}"
+          git checkout -b "$BRANCH"
+          git commit -am "release: v${VERSION}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --base "$DEFAULT_BRANCH" \
+            --head "$BRANCH" \
+            --title "release: v${VERSION}" \
+            --body "workflow_dispatch(bump=${BUMP})によるバージョン更新。マージすると release-publish が v${VERSION} をビルドして Release を作成する。"
