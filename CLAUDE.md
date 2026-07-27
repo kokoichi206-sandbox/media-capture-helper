@@ -1,22 +1,10 @@
 # CLAUDE.md
 
 開いている動画ページの動画をダウンロードする Chrome 拡張。
-機能・使い方・対応サイト・アーキテクチャの解説は [README](./README.md) を参照(ここでは重複させない)。
-
-この文書には、リポジトリを読んでも導出できないことだけを書く: 毎回使うコマンド、検証の境界、壊しても気づきにくい設計判断、環境の落とし穴。
-Stack と依存は package.json、manifest の意図は wxt.config.ts のコメントにある。
-
-## Commands
-
-- `pnpm dev` — 開発(Chrome を起動して拡張をロード)
-- `pnpm test` — ユニットテスト(vitest)
-- `pnpm compile` — 型チェック(`tsc --noEmit`)
-- `pnpm build` — 本番ビルド(`.output/chrome-mv3`)
-- `pnpm e2e` — 実機ダウンロードの E2E(`wxt build` + Playwright、要 ffprobe)
-- `pnpm lint` / `pnpm format` — ESLint / Prettier
 
 ## 検証の境界
 
+- 一括検証は `pnpm check`。実機ダウンロードの検証は `pnpm e2e`(要 ffprobe)。
 - 純粋ロジック(`src/extractor` の URL 解析・ストリーム選別・ファイル名生成)だけがユニットテスト対象。
 - ネットワーク取得・ffmpeg 結合・chrome.\* の連携・DNR による Referer 付与・offscreen の生成・サイドパネルの動線は**実機 Chrome(= `pnpm e2e`)でしか検証できない**。
 
@@ -28,7 +16,6 @@ Stack と依存は package.json、manifest の意図は wxt.config.ts のコメ�
 - **ffmpeg.wasm はバンドルせず public/vendor から実行時ロードする**(`src/downloader/ffmpeg-loader.ts`)。Vite に載せると worker バンドルと CSP で不確実になる。
 - **結合はフルサイズの連続バッファを作らない。** 入力は WORKERFS mount(Blob 遅延読み)、出力は fMP4 セグメント列(HLS muxer)の Blob 連結。writeFile や古典的 MP4(+faststart)出力に戻すと、MEMFS がファイル全長の連続配列を要求し、数 GB の動画で確保に失敗する(Chrome の worker では巨大連続確保が通らない)。
 - **状態の書き手は background だけ。** UI(sidepanel)は `storage.session` を購読して描画するだけで、実処理も決定も持たない。画質選択・結合対象の決定は `src/extractor/streams.ts` に集約する。
-- コメントは Why のみ。What/How はコードで表現する。
 
 ## 変更時にどこを触るか
 
